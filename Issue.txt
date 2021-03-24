@@ -1,0 +1,83 @@
+I create a new project with `stack new helloworld yesodweb/postgres && cd helloworld` with the intention of using flake.nix.
+I copy the following flake.nix file in the main directory of the project.
+
+`{
+  description = "Nix flake for helloworld";
+
+  inputs.flake-compat = {
+    url = "github:edolstra/flake-compat";
+    flake = false;
+  };
+  inputs.haskellNix.url = "github:input-output-hk/haskell.nix";
+  inputs.nixpkgs.follows = "haskellNix/nixpkgs-unstable";
+  inputs.flake-utils.url = "github:numtide/flake-utils";
+
+  outputs = { self, nixpkgs, flake-utils, haskellNix, flake-compat }:
+    flake-utils.lib.eachSystem [ "x86_64-linux" ] (system:
+    let
+      overlays =
+        [ haskellNix.overlay
+          (final: prev: {
+            # This overlay adds our project to pkgs
+
+            helloworld = final.haskell-nix.cabalProject {
+              # If these null parameters are absent, you get a RestrictedPathError error
+              # from trying to do readIfExists on cabal.project file
+              cabalProjectFreeze = null;
+              cabalProject = null;
+              cabalProjectLocal = null;
+
+              src = final.haskell-nix.cleanSourceHaskell {
+                src = ./.;
+                name = "helloworld";
+              };
+              compiler-nix-name = "ghc884";
+
+              pkg-def-extras = with final.haskell.lib; [];
+              modules = [];
+            };
+          })
+        ];
+      # lucid-from-html = haskellNix.hackage-package {
+      #   name         = "pandoc";
+      #   version      = "2.9.2.1";
+      #   index-state  = "2020-04-15T00:00:00Z";
+      #   # Function that returns a sha256 string by looking up the location
+      #   # and tag in a nested attrset
+      #   sha256map =
+      #     { "https://github.com/jgm/pandoc-citeproc"."0.17"
+      #         = "0dxx8cp2xndpw3jwiawch2dkrkp15mil7pyx7dvd810pwc22pm2q"; };
+      # };
+      pkgs = import nixpkgs { inherit system overlays; };
+      flake = pkgs.helloworld.flake {};
+    in flake // {
+      # Built by `nix build .`
+      defaultPackage = flake.packages."helloworld:exe:helloworld";
+
+      # This is used by `nix develop .` to open a shell for use with
+      # `cabal`, `hlint` and `haskell-language-server`
+      devShell = pkgs.helloworld.shellFor {
+        tools = {
+          cabal = "latest";
+          hlint = "latest";
+          haskell-language-server = "latest";
+          ghcid = "latest";
+        };
+      };
+    });
+}`
+
+If I rename or delete `stack.yaml` `stack.yaml.lock` and `package.yaml` I get the following error when I try to use `nix build` and `nix develop`:
+
+`error: --- Error -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- nix
+builder for '/nix/store/w2qfz2g7rsmspqznf308r9khxd8jg25q-helloworld-plan-to-nix-pkgs.drv' failed with exit code 1; last 4 log lines:
+  Using index-state 2021-03-23T00:00:00Z
+  No cabal.project file or cabal file matching the default glob './*.cabal' was found.
+  Please create a package description file <pkgname>.cabal or a cabal.project file referencing the packages you want to build.
+`
+
+But if I restore the `package.yaml` file (or the 3 files) I become able to run both `nix build` and `nix develop` in order to run `ghcid --command '(echo ":l app/DevelMain.hs" && cat) | cabal v2-repl' --test 'update' --warnings` inside `nix develop`, although it may need some reboots.
+
+I want to understand what exactly is happening, so I would appreciate much your contributions.
+
+If you want to take a look at the error with `--show-trace` or my configuration.nix file please go here "https://github.com/Joshie112358/helloworlderror/tree/main".
