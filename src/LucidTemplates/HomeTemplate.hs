@@ -23,4 +23,4 @@ homePage =  do
   toHtmlRaw "<!-- Products -->"
   section_ [ class_ "about full-screen d-lg-flex justify-content-center align-items-center", id_ "products" ] $ do
     div_ [ class_ "container" ] $ do
-      p_ [] "Hola Mundo"
+      p_ [] "Hello world, this is a tutorial!"
